@@ -1,6 +1,10 @@
-[package]
-name = "mini-servo"
-version = "0.1.0"
-edition = "2024"
+[workspace]
 
-[dependencies]
+resolver = "2"
+
+members = [
+    "crates/*",
+]
+
+[workspace.dependencies]
+script = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
