@@ -4,4 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-script.workspace = true
+html5ever.workspace = true
+anyhow.workspace = true
+rcdom.workspace = true
+
+# script.workspace = true
+# script_bindings.workspace = true
+# layout.workspace = true

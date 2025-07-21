@@ -7,4 +7,14 @@ members = [
 ]
 
 [workspace.dependencies]
-script = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+html5ever = "0.35"
+anyhow = "1"
+rcdom = { package = "markup5ever_rcdom", version = "0.35" }
+
+# servo deps
+# script = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# layout = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+
+# script = { path = "../servo/components/script" }
+# script_bindings = { path = "../servo/components/script_bindings" }
+# layout = { path = "../servo/components/layout" }
