@@ -10,8 +10,14 @@ members = [
 html5ever = "0.35"
 anyhow = "1"
 rcdom = { package = "markup5ever_rcdom", version = "0.35" }
-blitz-dom = "0.1.0-rc.1"
-blitz-html = "0.1.0-rc.1"
+blitz-dom = { path = "../blitz/packages/blitz-dom" }
+blitz-html = { path = "../blitz/packages/blitz-html" }
+stylo = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
+stylo_traits = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
+stylo_config = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
+stylo_dom = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
+
+euclid = "0.22"
 
 # servo deps
 # script = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
