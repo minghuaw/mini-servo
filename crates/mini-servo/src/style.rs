@@ -1,10 +1,12 @@
-use style::{context::SharedStyleContext, dom::TElement, driver::traverse_dom, traversal::DomTraversal};
+use style::{context::{SharedStyleContext, StyleContext}, dom::{NodeInfo, TElement, TNode}, driver::traverse_dom, traversal::{recalc_style_at, DomTraversal, PerLevelTraversalData}};
 
 pub(crate) fn resolve_style<E, D>(root: E, traversal: D, shared_context: &SharedStyleContext<'_>) -> Option<E>
 where
     E: TElement,
     D: DomTraversal<E>,
 {
+
+
     let token = D::pre_traverse(root, shared_context);
     if token.should_traverse() {
         return Some(traverse_dom(&traversal, token, None))
@@ -13,16 +15,92 @@ where
     None
 }
 
+pub(crate) struct RecalcStyle<'a> {
+    context: &'a SharedStyleContext<'a>,
+}
+
+impl<'a> RecalcStyle<'a> {
+    pub fn new(context: &'a SharedStyleContext<'a>) -> Self {
+        RecalcStyle { context }
+    }
+}
+
+#[allow(unsafe_code)]
+impl<E> DomTraversal<E> for RecalcStyle<'_>
+where
+    E: TElement,
+{
+    fn process_preorder<F: FnMut(E::ConcreteNode)>(
+        &self,
+        traversal_data: &PerLevelTraversalData,
+        context: &mut StyleContext<E>,
+        node: E::ConcreteNode,
+        note_child: F,
+    ) {
+        // Don't process textnodees in this traversal
+        if node.is_text_node() {
+            return;
+        }
+
+        let el = node.as_element().unwrap();
+        // let mut data = el.mutate_data().unwrap();
+        let mut data = unsafe { el.ensure_data() };
+        recalc_style_at(self, traversal_data, context, el, &mut data, note_child);
+
+        // Gets set later on
+        unsafe { el.unset_dirty_descendants() }
+    }
+
+    #[inline]
+    fn needs_postorder_traversal() -> bool {
+        false
+    }
+
+    fn process_postorder(&self, _style_context: &mut StyleContext<E>, _node: E::ConcreteNode) {
+        panic!("this should never be called")
+    }
+
+    #[inline]
+    fn shared_context(&self) -> &SharedStyleContext {
+        &self.context
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use blitz_dom::BaseDocument;
+    use euclid::Size2D;
+    use style::{dom::TDocument, selector_parser::SnapshotMap, shared_lock::{SharedRwLock, StylesheetGuards}};
 
-    use crate::parse::ParseHtml;
+    use crate::{dummy::DummyRegisteredSpeculativePainters, parse::ParseHtml, util::{make_device, make_shared_style_context, make_stylist}};
+
+    use super::*;
 
     const SIMPLE_TEST_HTML: &str = "<p>Hello, world!</p>";
 
     #[test]
     fn test_blitz_dom_style_traversal() {
         let doc = BaseDocument::parse_html(SIMPLE_TEST_HTML, Default::default()).unwrap();
+
+        // Create a dummy shared style context
+        let device = make_device(Size2D::new(800.0, 600.0));
+        let stylist = make_stylist(device);
+        let guard = SharedRwLock::new();
+        let guards = StylesheetGuards {
+            author: &guard.read(),
+            ua_or_user: &guard.read(),
+        };
+        let snapshot_map = SnapshotMap::new();
+        let registered_speculative_painters = DummyRegisteredSpeculativePainters;
+
+        let shared_context = make_shared_style_context(&stylist, guards, &snapshot_map, &registered_speculative_painters);
+        let traversal = RecalcStyle::new(&shared_context);
+
+        let root = TDocument::as_node(&doc.get_node(0).unwrap())
+            .first_element_child()
+            .unwrap()
+            .as_element()
+            .unwrap();
+        resolve_style(doc.root_element(), traversal, &shared_context);
     }
 }

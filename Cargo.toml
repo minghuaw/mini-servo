@@ -16,6 +16,7 @@ stylo = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 stylo_traits = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 stylo_config = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 stylo_dom = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
+selectors = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 
 euclid = "0.22"
 
