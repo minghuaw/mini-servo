@@ -1,15 +1,15 @@
 use style::{context::{SharedStyleContext, StyleContext}, dom::{NodeInfo, TElement, TNode}, driver::traverse_dom, traversal::{recalc_style_at, DomTraversal, PerLevelTraversalData}};
 
-pub(crate) fn resolve_style<E, D>(root: E, traversal: D, shared_context: &SharedStyleContext<'_>) -> Option<E>
+// mod rcdom;
+
+pub(crate) fn resolve_style<E, D>(root: E, traversal: D, shared_context: &SharedStyleContext<'_>, pool: Option<&rayon::ThreadPool>) -> Option<E>
 where
     E: TElement,
     D: DomTraversal<E>,
 {
-
-
     let token = D::pre_traverse(root, shared_context);
     if token.should_traverse() {
-        return Some(traverse_dom(&traversal, token, None))
+        return Some(traverse_dom(&traversal, token, pool))
     }
 
     None
@@ -70,7 +70,9 @@ where
 mod tests {
     use blitz_dom::BaseDocument;
     use euclid::Size2D;
-    use style::{dom::TDocument, selector_parser::SnapshotMap, shared_lock::{SharedRwLock, StylesheetGuards}};
+    use ::rcdom::RcDom;
+    use style::{dom::TDocument, selector_parser::SnapshotMap, shared_lock::{SharedRwLock, StylesheetGuards}, thread_state::{self, ThreadState}};
+    use selectors::Element;
 
     use crate::{dummy::DummyRegisteredSpeculativePainters, parse::ParseHtml, util::{make_device, make_shared_style_context, make_stylist}};
 
@@ -80,6 +82,7 @@ mod tests {
 
     #[test]
     fn test_blitz_dom_style_traversal() {
+        thread_state::enter(ThreadState::LAYOUT);
         let doc = BaseDocument::parse_html(SIMPLE_TEST_HTML, Default::default()).unwrap();
 
         // Create a dummy shared style context
@@ -101,6 +104,33 @@ mod tests {
             .unwrap()
             .as_element()
             .unwrap();
-        resolve_style(doc.root_element(), traversal, &shared_context);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(6) // STYLO_MAX_THREADS is not public
+            .build().unwrap();
+        resolve_style(root, traversal, &shared_context, None);
+
+        thread_state::exit(ThreadState::LAYOUT);
+    }
+
+    #[test]
+    fn test_rcdom_style_traversal() {
+        let doc = RcDom::parse_html(SIMPLE_TEST_HTML, Default::default()).unwrap();
+
+        // Create a dummy shared style context
+        let device = make_device(Size2D::new(800.0, 600.0));
+        let stylist = make_stylist(device);
+        let guard = SharedRwLock::new();
+        let guards = StylesheetGuards {
+            author: &guard.read(),
+            ua_or_user: &guard.read(),
+        };
+        let snapshot_map = SnapshotMap::new();
+        let registered_speculative_painters = DummyRegisteredSpeculativePainters;
+
+        let shared_context = make_shared_style_context(&stylist, guards, &snapshot_map, &registered_speculative_painters);
+        let traversal = RecalcStyle::new(&shared_context);
+        let root = doc.document.clone();
+
+        // resolve_style(root, traversal, &shared_context, None);
     }
 }

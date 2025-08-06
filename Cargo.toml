@@ -9,6 +9,7 @@ members = [
 [workspace.dependencies]
 html5ever = "0.35"
 anyhow = "1"
+atomic_refcell = "0.1"
 rcdom = { package = "markup5ever_rcdom", version = "0.35" }
 blitz-dom = { path = "../blitz/packages/blitz-dom" }
 blitz-html = { path = "../blitz/packages/blitz-html" }
@@ -17,13 +18,24 @@ stylo_traits = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 stylo_config = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 stylo_dom = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 selectors = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
+webrender_api = { git = "https://github.com/servo/webrender", branch = "0.67" }
 
 euclid = "0.22"
+rayon = "1"
+app_units = "0.7.5"
+log = "0.4"
 
 # servo deps
 # script = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
 # layout = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
 
-# script = { path = "../servo/components/script" }
+script = { path = "../servo/components/script" }
 # script_bindings = { path = "../servo/components/script_bindings" }
-# layout = { path = "../servo/components/layout" }
+layout = { path = "../servo/components/layout" }
+layout_api = { path="../servo/components/shared/layout" }
+range = { path = "../servo/components/range" }
+servo_url = { path = "../servo/components/url" }
+fonts_traits = { path = "../servo/components/shared/fonts" }
+pixels = { path = "../servo/components/pixels" }
+net_traits = { path = "../servo/components/shared/net" }
+base = { path = "../servo/components/shared/base" }

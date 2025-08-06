@@ -6,18 +6,30 @@ edition = "2024"
 [dependencies]
 html5ever.workspace = true
 anyhow.workspace = true
+atomic_refcell.workspace = true
 rcdom.workspace = true
 blitz-dom.workspace = true
 blitz-html.workspace = true
+app_units.workspace = true
+webrender_api.workspace = true
 
 stylo.workspace = true
 stylo_traits.workspace = true
 stylo_config.workspace = true
 stylo_dom.workspace = true
 selectors.workspace = true
+range.workspace = true
+servo_url.workspace = true
+fonts_traits.workspace = true
+pixels.workspace = true
+net_traits.workspace = true
+base.workspace = true
 
 euclid.workspace = true
+rayon.workspace = true
+log.workspace = true
 
-# script.workspace = true
+script.workspace = true
 # script_bindings.workspace = true
-# layout.workspace = true
+layout.workspace = true
+layout_api.workspace = true

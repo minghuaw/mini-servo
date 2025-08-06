@@ -5,7 +5,7 @@ use blitz_html::DocumentHtmlParser;
 use html5ever::{interface::TreeSink, tendril::TendrilSink, ParseOpts};
 use rcdom::RcDom;
 
-use crate::core::Dom;
+use crate::{core::Dom};
 
 pub trait ParseHtml: Sized {
     type Error;
