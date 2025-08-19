@@ -1,8 +1,11 @@
 use atomic_refcell::{AtomicRef, AtomicRefMut};
 use blitz_dom::stylo::Traverser;
 use layout_api::wrapper_traits::ThreadSafeLayoutElement;
-use style::{dom::{LayoutIterator, TElement}, selector_parser::SelectorImpl};
 use script::layout_dom::DOMDescendantIterator;
+use style::{
+    dom::{LayoutIterator, TElement},
+    selector_parser::SelectorImpl,
+};
 
 use crate::layout::{BlitzLayoutNode, BlitzLayoutNodeIterator};
 
@@ -29,7 +32,9 @@ impl<'dom> selectors::Element for BlitzLayoutElement<'dom> {
     }
 
     fn containing_shadow_host(&self) -> Option<Self> {
-        self.value.containing_shadow_host().map(|value| Self { value })
+        self.value
+            .containing_shadow_host()
+            .map(|value| Self { value })
     }
 
     fn is_pseudo_element(&self) -> bool {
@@ -37,11 +42,15 @@ impl<'dom> selectors::Element for BlitzLayoutElement<'dom> {
     }
 
     fn prev_sibling_element(&self) -> Option<Self> {
-        self.value.prev_sibling_element().map(|value| Self { value })
+        self.value
+            .prev_sibling_element()
+            .map(|value| Self { value })
     }
 
     fn next_sibling_element(&self) -> Option<Self> {
-        self.value.next_sibling_element().map(|value| Self { value })
+        self.value
+            .next_sibling_element()
+            .map(|value| Self { value })
     }
 
     fn first_element_child(&self) -> Option<Self> {
@@ -52,11 +61,17 @@ impl<'dom> selectors::Element for BlitzLayoutElement<'dom> {
         self.value.is_html_element_in_html_document()
     }
 
-    fn has_local_name(&self, local_name: &<Self::Impl as selectors::SelectorImpl>::BorrowedLocalName) -> bool {
+    fn has_local_name(
+        &self,
+        local_name: &<Self::Impl as selectors::SelectorImpl>::BorrowedLocalName,
+    ) -> bool {
         self.value.has_local_name(local_name)
     }
 
-    fn has_namespace(&self, ns: &<Self::Impl as selectors::SelectorImpl>::BorrowedNamespaceUrl) -> bool {
+    fn has_namespace(
+        &self,
+        ns: &<Self::Impl as selectors::SelectorImpl>::BorrowedNamespaceUrl,
+    ) -> bool {
         self.value.has_namespace(ns)
     }
 
@@ -66,9 +81,13 @@ impl<'dom> selectors::Element for BlitzLayoutElement<'dom> {
 
     fn attr_matches(
         &self,
-        ns: &selectors::attr::NamespaceConstraint<&<Self::Impl as selectors::SelectorImpl>::NamespaceUrl>,
+        ns: &selectors::attr::NamespaceConstraint<
+            &<Self::Impl as selectors::SelectorImpl>::NamespaceUrl,
+        >,
         local_name: &<Self::Impl as selectors::SelectorImpl>::LocalName,
-        operation: &selectors::attr::AttrSelectorOperation<&<Self::Impl as selectors::SelectorImpl>::AttrValue>,
+        operation: &selectors::attr::AttrSelectorOperation<
+            &<Self::Impl as selectors::SelectorImpl>::AttrValue,
+        >,
     ) -> bool {
         self.value.attr_matches(ns, local_name, operation)
     }
@@ -117,10 +136,7 @@ impl<'dom> selectors::Element for BlitzLayoutElement<'dom> {
         self.value.has_class(name, case_sensitivity)
     }
 
-    fn has_custom_state(
-        &self,
-        name: &<Self::Impl as selectors::SelectorImpl>::Identifier,
-    ) -> bool {
+    fn has_custom_state(&self, name: &<Self::Impl as selectors::SelectorImpl>::Identifier) -> bool {
         self.value.has_custom_state(name)
     }
 
@@ -154,14 +170,14 @@ impl<'dom> TElement for BlitzLayoutElement<'dom> {
     type TraversalChildrenIterator = BlitzLayoutNodeIterator<'dom>;
 
     fn as_node(&self) -> Self::ConcreteNode {
-        BlitzLayoutNode {
-            value: self.value
-        }
+        BlitzLayoutNode { value: self.value }
     }
 
     fn traversal_children(&self) -> style::dom::LayoutIterator<Self::TraversalChildrenIterator> {
         let traverser = self.value.traversal_children();
-        LayoutIterator(BlitzLayoutNodeIterator { traverser: traverser.0 })
+        LayoutIterator(BlitzLayoutNodeIterator {
+            traverser: traverser.0,
+        })
     }
 
     fn is_html_element(&self) -> bool {
@@ -176,21 +192,35 @@ impl<'dom> TElement for BlitzLayoutElement<'dom> {
         self.value.is_svg_element()
     }
 
-    fn style_attribute(&self) -> Option<style::servo_arc::ArcBorrow<style::shared_lock::Locked<style::properties::PropertyDeclarationBlock>>> {
+    fn style_attribute(
+        &self,
+    ) -> Option<
+        style::servo_arc::ArcBorrow<
+            style::shared_lock::Locked<style::properties::PropertyDeclarationBlock>,
+        >,
+    > {
         self.value.style_attribute()
     }
 
     fn animation_rule(
         &self,
         rule: &style::context::SharedStyleContext,
-    ) -> Option<style::servo_arc::Arc<style::shared_lock::Locked<style::properties::PropertyDeclarationBlock>>> {
+    ) -> Option<
+        style::servo_arc::Arc<
+            style::shared_lock::Locked<style::properties::PropertyDeclarationBlock>,
+        >,
+    > {
         self.value.animation_rule(rule)
     }
 
     fn transition_rule(
         &self,
         context: &style::context::SharedStyleContext,
-    ) -> Option<style::servo_arc::Arc<style::shared_lock::Locked<style::properties::PropertyDeclarationBlock>>> {
+    ) -> Option<
+        style::servo_arc::Arc<
+            style::shared_lock::Locked<style::properties::PropertyDeclarationBlock>,
+        >,
+    > {
         self.value.transition_rule(context)
     }
 
@@ -212,19 +242,22 @@ impl<'dom> TElement for BlitzLayoutElement<'dom> {
 
     fn each_class<F>(&self, callback: F)
     where
-        F: FnMut(&style::values::AtomIdent) {
+        F: FnMut(&style::values::AtomIdent),
+    {
         self.value.each_class(callback);
     }
 
     fn each_custom_state<F>(&self, callback: F)
     where
-        F: FnMut(&style::values::AtomIdent) {
+        F: FnMut(&style::values::AtomIdent),
+    {
         self.value.each_custom_state(callback);
     }
 
     fn each_attr_name<F>(&self, callback: F)
     where
-        F: FnMut(&style::LocalName) {
+        F: FnMut(&style::LocalName),
+    {
         self.value.each_attr_name(callback);
     }
 
@@ -309,18 +342,28 @@ impl<'dom> TElement for BlitzLayoutElement<'dom> {
     }
 
     fn shadow_root(&self) -> Option<<Self::ConcreteNode as style::dom::TNode>::ConcreteShadowRoot> {
-        self.value.shadow_root().map(|value| BlitzLayoutNode { value })
+        self.value
+            .shadow_root()
+            .map(|value| BlitzLayoutNode { value })
     }
 
-    fn containing_shadow(&self) -> Option<<Self::ConcreteNode as style::dom::TNode>::ConcreteShadowRoot> {
-        self.value.containing_shadow().map(|value| BlitzLayoutNode { value })
+    fn containing_shadow(
+        &self,
+    ) -> Option<<Self::ConcreteNode as style::dom::TNode>::ConcreteShadowRoot> {
+        self.value
+            .containing_shadow()
+            .map(|value| BlitzLayoutNode { value })
     }
 
     fn lang_attr(&self) -> Option<style::selector_parser::AttrValue> {
         self.value.lang_attr()
     }
 
-    fn match_element_lang(&self, override_lang: Option<Option<style::selector_parser::AttrValue>>, value: &style::selector_parser::Lang) -> bool {
+    fn match_element_lang(
+        &self,
+        override_lang: Option<Option<style::selector_parser::AttrValue>>,
+        value: &style::selector_parser::Lang,
+    ) -> bool {
         self.value.match_element_lang(override_lang, value)
     }
 
@@ -333,17 +376,22 @@ impl<'dom> TElement for BlitzLayoutElement<'dom> {
         visited_handling: selectors::context::VisitedHandlingMode,
         hints: &mut V,
     ) where
-        V: selectors::sink::Push<style::applicable_declarations::ApplicableDeclarationBlock> {
-        self.value.synthesize_presentational_hints_for_legacy_attributes(visited_handling, hints)
+        V: selectors::sink::Push<style::applicable_declarations::ApplicableDeclarationBlock>,
+    {
+        self.value
+            .synthesize_presentational_hints_for_legacy_attributes(visited_handling, hints)
     }
 
-    fn local_name(&self) -> &<style::selector_parser::SelectorImpl as selectors::parser::SelectorImpl>::BorrowedLocalName {
+    fn local_name(
+        &self,
+    ) -> &<style::selector_parser::SelectorImpl as selectors::parser::SelectorImpl>::BorrowedLocalName
+    {
         self.value.local_name()
     }
 
     fn namespace(&self)
-        -> &<style::selector_parser::SelectorImpl as selectors::parser::SelectorImpl>::BorrowedNamespaceUrl {
-            self.value.namespace()
+    -> &<style::selector_parser::SelectorImpl as selectors::parser::SelectorImpl>::BorrowedNamespaceUrl{
+        self.value.namespace()
     }
 
     fn query_container_size(

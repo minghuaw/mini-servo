@@ -1,3 +1,1 @@
-pub(crate) trait Node {
-    
-}
+pub(crate) trait Node {}

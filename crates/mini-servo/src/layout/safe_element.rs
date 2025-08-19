@@ -1,13 +1,16 @@
 use atomic_refcell::AtomicRef;
 use blitz_dom::node::NodeKind;
 use layout_api::wrapper_traits::{ThreadSafeLayoutElement, ThreadSafeLayoutNode};
-use style::{dom::TElement, selector_parser::{PseudoElement, SelectorImpl}};
+use style::{
+    dom::TElement,
+    selector_parser::{PseudoElement, SelectorImpl},
+};
 
 use crate::layout::{BlitzLayoutElement, BlitzLayoutNode, SafeBlitzLayoutNode};
 
 use super::BlitzNode;
 
-#[derive(Debug, Clone, Copy,)]
+#[derive(Debug, Clone, Copy)]
 pub struct SafeBlitzLayoutElement<'dom> {
     pub element: BlitzLayoutElement<'dom>,
     pub pseudo: Option<PseudoElement>,
@@ -21,7 +24,10 @@ impl<'dom> ::selectors::Element for SafeBlitzLayoutElement<'dom> {
     }
 
     fn parent_element(&self) -> Option<Self> {
-        self.element.parent_element().map(|value| Self { element: value, pseudo: None }  )
+        self.element.parent_element().map(|value| Self {
+            element: value,
+            pseudo: None,
+        })
     }
 
     fn parent_node_is_shadow_root(&self) -> bool {
@@ -29,7 +35,10 @@ impl<'dom> ::selectors::Element for SafeBlitzLayoutElement<'dom> {
     }
 
     fn containing_shadow_host(&self) -> Option<Self> {
-        self.element.containing_shadow_host().map(|value| Self { element: value, pseudo: None } )
+        self.element.containing_shadow_host().map(|value| Self {
+            element: value,
+            pseudo: None,
+        })
     }
 
     fn is_pseudo_element(&self) -> bool {
@@ -58,11 +67,17 @@ impl<'dom> ::selectors::Element for SafeBlitzLayoutElement<'dom> {
         self.element.is_html_element_in_html_document()
     }
 
-    fn has_local_name(&self, local_name: &<Self::Impl as selectors::SelectorImpl>::BorrowedLocalName) -> bool {
+    fn has_local_name(
+        &self,
+        local_name: &<Self::Impl as selectors::SelectorImpl>::BorrowedLocalName,
+    ) -> bool {
         self.element.has_local_name(local_name)
     }
 
-    fn has_namespace(&self, ns: &<Self::Impl as selectors::SelectorImpl>::BorrowedNamespaceUrl) -> bool {
+    fn has_namespace(
+        &self,
+        ns: &<Self::Impl as selectors::SelectorImpl>::BorrowedNamespaceUrl,
+    ) -> bool {
         self.element.has_namespace(ns)
     }
 
@@ -72,9 +87,13 @@ impl<'dom> ::selectors::Element for SafeBlitzLayoutElement<'dom> {
 
     fn attr_matches(
         &self,
-        ns: &selectors::attr::NamespaceConstraint<&<Self::Impl as selectors::SelectorImpl>::NamespaceUrl>,
+        ns: &selectors::attr::NamespaceConstraint<
+            &<Self::Impl as selectors::SelectorImpl>::NamespaceUrl,
+        >,
         local_name: &<Self::Impl as selectors::SelectorImpl>::LocalName,
-        operation: &selectors::attr::AttrSelectorOperation<&<Self::Impl as selectors::SelectorImpl>::AttrValue>,
+        operation: &selectors::attr::AttrSelectorOperation<
+            &<Self::Impl as selectors::SelectorImpl>::AttrValue,
+        >,
     ) -> bool {
         self.element.attr_matches(ns, local_name, operation)
     }
@@ -123,10 +142,7 @@ impl<'dom> ::selectors::Element for SafeBlitzLayoutElement<'dom> {
         self.element.has_class(name, case_sensitivity)
     }
 
-    fn has_custom_state(
-        &self,
-        name: &<Self::Impl as selectors::SelectorImpl>::Identifier,
-    ) -> bool {
+    fn has_custom_state(&self, name: &<Self::Impl as selectors::SelectorImpl>::Identifier) -> bool {
         self.element.has_custom_state(name)
     }
 
@@ -161,12 +177,9 @@ impl<'dom> ThreadSafeLayoutElement<'dom> for SafeBlitzLayoutElement<'dom> {
 
     fn as_node(&self) -> Self::ConcreteThreadSafeLayoutNode {
         let node = BlitzLayoutNode {
-            value: self.element.value
+            value: self.element.value,
         };
-        SafeBlitzLayoutNode {
-            node,
-            pseudo: None,
-        }
+        SafeBlitzLayoutNode { node, pseudo: None }
     }
 
     fn with_pseudo(&self, pseudo: style::selector_parser::PseudoElement) -> Option<Self> {
@@ -186,13 +199,24 @@ impl<'dom> ThreadSafeLayoutElement<'dom> for SafeBlitzLayoutElement<'dom> {
         self.element.local_name()
     }
 
-    fn get_attr(&self, namespace: &blitz_dom::Namespace, name: &blitz_dom::LocalName) -> Option<&str> {
-        self.element.value.attrs().and_then(|attrs| attrs.iter().find(|attr| {
-            attr.name.local == *name && attr.name.ns == *namespace
-        }).map(|attr| attr.value.as_str()))
+    fn get_attr(
+        &self,
+        namespace: &blitz_dom::Namespace,
+        name: &blitz_dom::LocalName,
+    ) -> Option<&str> {
+        self.element.value.attrs().and_then(|attrs| {
+            attrs
+                .iter()
+                .find(|attr| attr.name.local == *name && attr.name.ns == *namespace)
+                .map(|attr| attr.value.as_str())
+        })
     }
 
-    fn get_attr_enum(&self, _namespace: &blitz_dom::Namespace, _name: &blitz_dom::LocalName) -> Option<&style::attr::AttrValue> {
+    fn get_attr_enum(
+        &self,
+        _namespace: &blitz_dom::Namespace,
+        _name: &blitz_dom::LocalName,
+    ) -> Option<&style::attr::AttrValue> {
         // self.element.value.attrs().and_then(|attrs| attrs.iter().find(|attr| {
         //     attr.name.local == *name && attr.name.ns == *namespace
         // }).map(|attr| &style::attr::AttrValue::String(attr.value.clone())))

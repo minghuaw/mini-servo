@@ -8,11 +8,15 @@ use net_traits::image_cache::Image;
 use pixels::ImageMetadata;
 use range::Range;
 use servo_url::ServoUrl;
-use style::{attr::AttrValue, dom::{LayoutIterator, NodeInfo, TElement, TNode}, selector_parser::PseudoElement};
+use style::{
+    attr::AttrValue,
+    dom::{LayoutIterator, NodeInfo, TElement, TNode},
+    selector_parser::PseudoElement,
+};
 
 use crate::layout::{BlitzLayoutElement, SafeBlitzChildrenIterator, SafeBlitzLayoutElement};
 
-use super::{BlitzNode, BlitzLayoutNode};
+use super::{BlitzLayoutNode, BlitzNode};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SafeBlitzLayoutNode<'dom> {
@@ -29,7 +33,6 @@ impl<'dom> NodeInfo for SafeBlitzLayoutNode<'dom> {
         self.node.is_text_node()
     }
 }
-
 
 impl<'dom> ThreadSafeLayoutNode<'dom> for SafeBlitzLayoutNode<'dom> {
     type ConcreteNode = BlitzLayoutNode<'dom>;
@@ -64,12 +67,15 @@ impl<'dom> ThreadSafeLayoutNode<'dom> for SafeBlitzLayoutNode<'dom> {
 
     fn children(&self) -> style::dom::LayoutIterator<Self::ChildrenIterator> {
         let traverser = self.node.value.traversal_children();
-        LayoutIterator(SafeBlitzChildrenIterator { traverser: traverser.0 })
+        LayoutIterator(SafeBlitzChildrenIterator {
+            traverser: traverser.0,
+        })
     }
 
     fn as_element(&self) -> Option<Self::ConcreteThreadSafeLayoutElement> {
-        self.node.as_element().map(|el| {
-            SafeBlitzLayoutElement { element: el, pseudo: None }
+        self.node.as_element().map(|el| SafeBlitzLayoutElement {
+            element: el,
+            pseudo: None,
         })
     }
 
@@ -130,15 +136,24 @@ impl<'dom> ThreadSafeLayoutNode<'dom> for SafeBlitzLayoutNode<'dom> {
     }
 
     fn get_span(&self) -> Option<u32> {
-        self.node.value.attr(local_name!("span")).map(|value| AttrValue::String(value.to_string()).as_uint())
+        self.node
+            .value
+            .attr(local_name!("span"))
+            .map(|value| AttrValue::String(value.to_string()).as_uint())
     }
 
     fn get_colspan(&self) -> Option<u32> {
-        self.node.value.attr(local_name!("colspan")).map(|value| AttrValue::String(value.to_string()).as_uint())
+        self.node
+            .value
+            .attr(local_name!("colspan"))
+            .map(|value| AttrValue::String(value.to_string()).as_uint())
     }
 
     fn get_rowspan(&self) -> Option<u32> {
-        self.node.value.attr(local_name!("rowspan")).map(|value| AttrValue::String(value.to_string()).as_uint())
+        self.node
+            .value
+            .attr(local_name!("rowspan"))
+            .map(|value| AttrValue::String(value.to_string()).as_uint())
     }
 
     fn pseudo_element(&self) -> Option<PseudoElement> {

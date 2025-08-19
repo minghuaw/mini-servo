@@ -1,9 +1,9 @@
+mod document;
 mod dom;
 mod node;
-mod document;
 mod style;
 
+pub use document::*;
 pub use dom::*;
 pub use node::*;
-pub use document::*;
 pub use style::*;

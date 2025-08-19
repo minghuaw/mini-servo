@@ -14,7 +14,7 @@ impl<'dom> Iterator for SafeBlitzChildrenIterator<'dom> {
     fn next(&mut self) -> Option<Self::Item> {
         self.traverser.next().map(|value| {
             let node = BlitzLayoutNode { value };
-            SafeBlitzLayoutNode { node, pseudo: None } 
+            SafeBlitzLayoutNode { node, pseudo: None }
         })
     }
 }

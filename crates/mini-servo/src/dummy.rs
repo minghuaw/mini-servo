@@ -1,4 +1,7 @@
-use style::{context::RegisteredSpeculativePainters, servo::media_queries::FontMetricsProvider, values::computed::Au};
+use style::{
+    context::RegisteredSpeculativePainters, servo::media_queries::FontMetricsProvider,
+    values::computed::Au,
+};
 
 #[derive(Debug)]
 pub struct DummyFontMetricsProvider;
@@ -13,7 +16,10 @@ impl FontMetricsProvider for DummyFontMetricsProvider {
         Default::default()
     }
 
-    fn base_size_for_generic(&self, generic: style::values::computed::font::GenericFontFamily) -> style::values::computed::Length {
+    fn base_size_for_generic(
+        &self,
+        generic: style::values::computed::font::GenericFontFamily,
+    ) -> style::values::computed::Length {
         style::values::computed::Length::from(Au::from_f32_px(13.0))
     }
 }

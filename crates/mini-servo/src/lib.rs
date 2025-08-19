@@ -1,11 +1,11 @@
-pub mod parse;
 pub mod core;
+pub mod dummy;
 pub mod impls;
+pub mod layout;
+pub mod parse;
 pub mod style;
 pub mod util;
-pub mod dummy;
 pub mod wrapper;
-pub mod layout;
 
 pub struct DomTypeConfig;
 

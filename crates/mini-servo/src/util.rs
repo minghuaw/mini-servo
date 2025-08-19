@@ -8,13 +8,25 @@ use euclid::{Scale, Size2D};
 use fonts::{FontContext, SystemFontService};
 use gleam::gl::Gl;
 use ipc_channel::ipc::{self, IpcSender};
-use net::{indexeddb::IndexedDBThreadFactory, storage_thread::StorageThreadFactory};
-use net_traits::{storage_thread::StorageThreadMsg, CoreResourceThread, ResourceThreads};
-use servo::{gl::RENDERER, profile_traits::{
-    mem::{self, ProfilerChan},
-    time,
-}, OffscreenRenderingContext, RenderNotifier, RenderingContext, WindowRenderingContext};
+use layout::context::ImageResolver;
+use net::{
+    image_cache::ImageCacheImpl, indexeddb::IndexedDBThreadFactory,
+    storage_thread::StorageThreadFactory,
+};
+use net_traits::{
+    CoreResourceThread, ResourceThreads, image_cache::ImageCache, storage_thread::StorageThreadMsg,
+};
+use parking_lot::{Mutex, RwLock};
+use servo::{
+    OffscreenRenderingContext, RenderNotifier, RenderingContext, WindowRenderingContext,
+    gl::RENDERER,
+    profile_traits::{
+        mem::{self, ProfilerChan},
+        time,
+    },
+};
 use servo_config::pref;
+use servo_url::ImmutableOrigin;
 use style::{
     animation::DocumentAnimationSet,
     context::{QuirksMode, RegisteredSpeculativePainters, SharedStyleContext},
@@ -29,7 +41,9 @@ use style::{
     traversal_flags::TraversalFlags,
 };
 use style_traits::CSSPixel;
-use webrender::{RenderApiSender, Renderer, ShaderPrecacheFlags, UploadMethod, ONE_TIME_USAGE_HINT};
+use webrender::{
+    ONE_TIME_USAGE_HINT, RenderApiSender, Renderer, ShaderPrecacheFlags, UploadMethod,
+};
 use webrender_api::ColorF;
 use winit::raw_window_handle::{DisplayHandle, WindowHandle};
 
@@ -72,8 +86,8 @@ pub fn make_shared_style_context<'a>(
     }
 }
 
-pub fn make_dummy_constellation_chan()
--> crossbeam_channel::Sender<EmbedderToConstellationMessage> {
+pub fn make_dummy_constellation_chan() -> crossbeam_channel::Sender<EmbedderToConstellationMessage>
+{
     let (sender, receiver) = crossbeam_channel::unbounded::<EmbedderToConstellationMessage>();
 
     // Spawn a thread that recvs messages
@@ -98,7 +112,6 @@ pub fn make_dummy_core_thread() -> CoreResourceThread {
         }
     });
 
-
     sender
 }
 
@@ -112,13 +125,28 @@ pub fn make_font_context(
 
     let core_thread = make_dummy_core_thread();
     let config_dir = None;
-    let storage: IpcSender<StorageThreadMsg> = StorageThreadFactory::new(config_dir.clone(), memory_profiler_sender);
+    let storage: IpcSender<StorageThreadMsg> =
+        StorageThreadFactory::new(config_dir.clone(), memory_profiler_sender);
     let idb = IndexedDBThreadFactory::new(config_dir);
     let resource_threads = ResourceThreads::new(core_thread, storage.clone(), idb);
 
     log::info!("making FontContext");
-    let font_context = FontContext::new(system_font_service_proxy, compositor_api, resource_threads);
+    let font_context =
+        FontContext::new(system_font_service_proxy, compositor_api, resource_threads);
     (font_context, storage)
+}
+
+pub fn make_image_resolver(compositor_api: CrossProcessCompositorApi) -> ImageResolver {
+    let image_cache = ImageCacheImpl::new(compositor_api, vec![]);
+    ImageResolver {
+        origin: ImmutableOrigin::new_opaque(),
+        image_cache: Arc::new(image_cache),
+        pending_images: Mutex::default(),
+        pending_rasterization_images: Mutex::default(),
+        node_to_animating_image_map: Arc::new(RwLock::default()),
+        resolved_images_cache: Arc::new(RwLock::default()),
+        animation_timeline_value: 0.0, // TODO: testing with 0
+    }
 }
 
 pub fn make_webrender(
@@ -127,10 +155,7 @@ pub fn make_webrender(
     compositor_proxy: &CompositorProxy,
 ) -> (Renderer, RenderApiSender) {
     let mut debug_flags = webrender::DebugFlags::empty();
-    debug_flags.set(
-        webrender::DebugFlags::PROFILER_DBG,
-        false,
-    );
+    debug_flags.set(webrender::DebugFlags::PROFILER_DBG, false);
 
     rendering_context.prepare_for_rendering();
     let render_notifier = Box::new(RenderNotifier::new(compositor_proxy.clone()));
