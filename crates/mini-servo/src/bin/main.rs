@@ -24,8 +24,7 @@ use mini_servo::{
     parse::ParseHtml,
     style::{resolve_style, RecalcStyle},
     util::{
-        make_device, make_dummy_constellation_chan, make_font_context, make_image_resolver,
-        make_shared_style_context, make_stylist, spawn_compositor_thread,
+        make_device, make_dummy_constellation_chan, make_font_context, make_image_resolver, make_shared_style_context, make_stylist, spawn_compositor_thread, spin_compositor_thread, RenderingContextFactory
     },
 };
 
@@ -64,19 +63,17 @@ fn main() {
     let time_profiler_chan = ::profile::time::Profiler::create(&None, None);
     let mem_profiler_chan = ::profile::mem::Profiler::create();
     let constellation_sender = make_dummy_constellation_chan();
+    // let rendering_context = Rc::new(SoftwareRenderingContext::new(DEFAULT_SIZE).unwrap()) as Rc<dyn RenderingContext>;
+    let rendering_context_factory = RenderingContextFactory::Software { size: DEFAULT_SIZE };
 
-    let rendering_context_fn = move || {
-        Rc::new(SoftwareRenderingContext::new(DEFAULT_SIZE).unwrap()) as Rc<dyn RenderingContext>
-    };
-
-    let handle = spawn_compositor_thread(
+    let compositor_thread = spawn_compositor_thread(
         compositor_proxy,
         compositor_receiver,
         constellation_sender,
         time_profiler_chan,
         mem_profiler_chan.clone(),
         event_loop_waker,
-        rendering_context_fn,
+        rendering_context_factory,
     );
 
     let (font_context, _storage_sender) =
