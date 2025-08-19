@@ -18,12 +18,19 @@ stylo_traits = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 stylo_config = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 stylo_dom = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 selectors = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
+webrender = { git = "https://github.com/servo/webrender", branch = "0.67", features = ["capture"] }
 webrender_api = { git = "https://github.com/servo/webrender", branch = "0.67" }
+surfman = { git = "https://github.com/servo/surfman", rev = "f7688b4585f9e0b5d4bf8ee8e4a91e82349610b1", features = ["chains"] }
 
 euclid = "0.22"
 rayon = "1"
 app_units = "0.7.5"
 log = "0.4"
+ipc-channel = "0.20"
+parking_lot = "0.12"
+strum = "0.26"
+crossbeam-channel = "0.5"
+dpi = "0.1"
 
 # servo deps
 # script = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
@@ -35,7 +42,19 @@ layout = { path = "../servo/components/layout" }
 layout_api = { path="../servo/components/shared/layout" }
 range = { path = "../servo/components/range" }
 servo_url = { path = "../servo/components/url" }
+fonts = { path = "../servo/components/fonts" }
 fonts_traits = { path = "../servo/components/shared/fonts" }
 pixels = { path = "../servo/components/pixels" }
 net_traits = { path = "../servo/components/shared/net" }
 base = { path = "../servo/components/shared/base" }
+libservo = { path = "../servo/components/servo" }
+compositing = { path = "../servo/components/compositing" }
+compositing_traits = { path = "../servo/components/shared/compositing" }
+constellation_traits = { path = "../servo/components/shared/constellation" }
+net = { path = "../servo/components/net" }
+servo_config = { path = "../servo/components/config" }
+servo_allocator = { path = "../servo/components/allocator" }
+profile = { path = "../servo/components/profile" }
+gleam = "0.15"
+winit = "0.30.11"
+env_logger = "0.11"

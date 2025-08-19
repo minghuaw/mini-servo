@@ -1,7 +1,7 @@
 use style::{context::RegisteredSpeculativePainters, servo::media_queries::FontMetricsProvider, values::computed::Au};
 
 #[derive(Debug)]
-pub(crate) struct DummyFontMetricsProvider;
+pub struct DummyFontMetricsProvider;
 impl FontMetricsProvider for DummyFontMetricsProvider {
     fn query_font_metrics(
         &self,
@@ -18,7 +18,7 @@ impl FontMetricsProvider for DummyFontMetricsProvider {
     }
 }
 
-pub(crate) struct DummyRegisteredSpeculativePainters;
+pub struct DummyRegisteredSpeculativePainters;
 impl RegisteredSpeculativePainters for DummyRegisteredSpeculativePainters {
     fn get(&self, name: &style::Atom) -> Option<&dyn style::context::RegisteredSpeculativePainter> {
         None

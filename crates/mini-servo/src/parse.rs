@@ -49,7 +49,22 @@ mod tests {
 
     use crate::parse::ParseHtml;
 
-    const SIMPLE_TEST_HTML: &str = "<p>Hello, world!</p>";
+    // const SIMPLE_TEST_HTML: &str = "<p>Hello, world!</p>";
+    // const SIMPLE_TEST_HTML: &str = "<html></html>";
+    const SIMPLE_TEST_HTML: &str = r#"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>This is title</title>
+</head>
+<body>
+    <h1>header 1</h1>
+    <p>This is a simple paragraph in my HTML document</p>
+    Here's some additional text outside of the paragraph tags
+    <p>This is a para</p>
+</body>
+</html>
+"#;
 
     #[test]
     fn test_rcdom_parse_html() {

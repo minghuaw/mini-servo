@@ -94,31 +94,31 @@ impl<'dom> ThreadSafeLayoutNode<'dom> for SafeBlitzLayoutNode<'dom> {
     }
 
     fn selection(&self) -> Option<Range<ByteIndex>> {
-        unreachable!("selection doesn't seem to get used at all")
+        None
     }
 
     fn image_url(&self) -> Option<ServoUrl> {
-        unimplemented!()
+        None
     }
 
     fn image_density(&self) -> Option<f64> {
-        unimplemented!()
+        None
     }
 
     fn image_data(&self) -> Option<(Option<Image>, Option<ImageMetadata>)> {
-        unimplemented!()
+        None
     }
 
     fn canvas_data(&self) -> Option<layout_api::HTMLCanvasData> {
-        unimplemented!()
+        None
     }
 
     fn svg_data(&self) -> Option<layout_api::SVGSVGData> {
-        unimplemented!()
+        None
     }
 
     fn media_data(&self) -> Option<layout_api::HTMLMediaData> {
-        unimplemented!()
+        None
     }
 
     fn iframe_browsing_context_id(&self) -> Option<BrowsingContextId> {
@@ -126,7 +126,7 @@ impl<'dom> ThreadSafeLayoutNode<'dom> for SafeBlitzLayoutNode<'dom> {
     }
 
     fn iframe_pipeline_id(&self) -> Option<PipelineId> {
-        unimplemented!()
+        None
     }
 
     fn get_span(&self) -> Option<u32> {
