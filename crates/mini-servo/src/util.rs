@@ -1,9 +1,9 @@
-use std::{rc::Rc, sync::Arc};
+use std::{cell::Cell, rc::Rc, sync::Arc, thread::JoinHandle};
 
-use compositing::IOCompositor;
-use compositing_traits::{CompositorProxy, CrossProcessCompositorApi};
+use compositing::{IOCompositor, InitialCompositorState};
+use compositing_traits::{CompositorMsg, CompositorProxy, CrossProcessCompositorApi};
 use constellation_traits::EmbedderToConstellationMessage;
-use dpi::PhysicalSize;
+use crossbeam_channel::{Receiver, Sender};
 use euclid::{Scale, Size2D};
 use fonts::{FontContext, SystemFontService};
 use gleam::gl::Gl;
@@ -18,38 +18,25 @@ use net_traits::{
 };
 use parking_lot::{Mutex, RwLock};
 use servo::{
-    OffscreenRenderingContext, RenderNotifier, RenderingContext, WindowRenderingContext,
-    gl::RENDERER,
-    profile_traits::{
-        mem::{self, ProfilerChan},
-        time,
-    },
+    gl::RENDERER, profile_traits::{
+        self, mem,
+    }, EventLoopWaker, RenderNotifier, RenderingContext, ShutdownState
 };
 use servo_config::pref;
 use servo_url::ImmutableOrigin;
 use style::{
-    animation::DocumentAnimationSet,
-    context::{QuirksMode, RegisteredSpeculativePainters, SharedStyleContext},
-    global_style_data::GLOBAL_STYLE_DATA,
-    media_queries::{Device, MediaType},
-    properties::{ComputedValues, style_structs::Font},
-    queries::values::PrefersColorScheme,
-    selector_parser::SnapshotMap,
-    servo::media_queries::FontMetricsProvider,
-    shared_lock::StylesheetGuards,
-    stylist::Stylist,
-    traversal_flags::TraversalFlags,
+    animation::DocumentAnimationSet, context::{QuirksMode, RegisteredSpeculativePainters, SharedStyleContext}, global_style_data::GLOBAL_STYLE_DATA, media_queries::{Device, MediaType}, properties::{style_structs::Font, ComputedValues}, queries::values::PrefersColorScheme, selector_parser::SnapshotMap, servo::media_queries::FontMetricsProvider, shared_lock::StylesheetGuards, stylist::Stylist, traversal_flags::TraversalFlags
 };
 use style_traits::CSSPixel;
 use webrender::{
     ONE_TIME_USAGE_HINT, RenderApiSender, Renderer, ShaderPrecacheFlags, UploadMethod,
 };
 use webrender_api::ColorF;
-use winit::raw_window_handle::{DisplayHandle, WindowHandle};
 
-use crate::dummy::DummyFontMetricsProvider;
-
-pub fn make_device(viewport_size: Size2D<f32, CSSPixel>) -> Device {
+pub fn make_device(
+    viewport_size: Size2D<f32, CSSPixel>,
+    font_metrics_provider: Box<dyn FontMetricsProvider>,
+) -> Device {
     let font = Font::initial_values();
 
     Device::new(
@@ -57,7 +44,7 @@ pub fn make_device(viewport_size: Size2D<f32, CSSPixel>) -> Device {
         QuirksMode::NoQuirks,
         viewport_size,
         Scale::new(1.0),
-        Box::new(DummyFontMetricsProvider),
+        font_metrics_provider,
         ComputedValues::initial_values_with_font_override(font),
         PrefersColorScheme::Light,
     )
@@ -238,19 +225,69 @@ pub fn spin_compositor(compositor: &mut IOCompositor) {
     }
 }
 
+pub fn spawn_compositor_thread(
+    compositor_proxy: CompositorProxy,
+    compositor_receiver: Receiver<CompositorMsg>,
+    constellation_sender: Sender<EmbedderToConstellationMessage>,
+    time_profiler_chan: profile_traits::time::ProfilerChan,
+    mem_profiler_chan: profile_traits::mem::ProfilerChan,
+    event_loop_waker: Box<dyn EventLoopWaker>,
+    rendering_context_fn: impl FnOnce() -> Rc<dyn RenderingContext> + Send + 'static,
+) -> JoinHandle<()> {
+    std::thread::spawn(move || {
+        log::info!("spawned new thread");
+
+        let shutdown_state = Rc::new(Cell::new(ShutdownState::NotShuttingDown));
+        let rendering_context = (rendering_context_fn)();
+
+        let webrender_gl = rendering_context.gleam_gl_api();
+        let (webrender, webrender_api_sender) = make_webrender(
+            rendering_context.clone(),
+            webrender_gl.clone(),
+            &compositor_proxy,
+        );
+        let webrender_api = webrender_api_sender.create_api();
+        let webrender_document = webrender_api.add_document(rendering_context.size2d().to_i32());
+
+        let state = InitialCompositorState {
+            sender: compositor_proxy,
+            receiver: compositor_receiver,
+            constellation_chan: constellation_sender,
+            time_profiler_chan,
+            mem_profiler_chan,
+            shutdown_state,
+            webrender,
+            webrender_document,
+            webrender_api,
+            rendering_context,
+            webrender_gl,
+            event_loop_waker,
+        };
+        let convert_mouse_to_touch = false;
+
+        log::info!("creating compositor");
+        let mut compositor = IOCompositor::new(state, convert_mouse_to_touch);
+
+        log::info!("created compositor");
+
+        spin_compositor(&mut compositor);
+    })
+}
+
+
 #[cfg(test)]
 mod tests {
     use compositing_traits::CompositorMsg;
     use servo::{DefaultEventLoopWaker, EventLoopWaker, create_compositor_channel};
     use style::shared_lock::SharedRwLock;
 
-    use crate::dummy::DummyRegisteredSpeculativePainters;
+    use crate::dummy::{DummyFontMetricsProvider, DummyRegisteredSpeculativePainters};
 
     use super::*;
 
     #[test]
     fn test_make_shared_style_context() {
-        let device = make_device(Size2D::new(800.0, 600.0));
+        let device = make_device(Size2D::new(800.0, 600.0), Box::new(DummyFontMetricsProvider));
         let stylist = make_stylist(device);
         let guard = SharedRwLock::new();
         let guards = StylesheetGuards {

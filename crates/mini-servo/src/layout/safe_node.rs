@@ -16,7 +16,7 @@ use style::{
 
 use crate::layout::{BlitzLayoutElement, SafeBlitzChildrenIterator, SafeBlitzLayoutElement};
 
-use super::{BlitzLayoutNode, BlitzNode};
+use super::BlitzLayoutNode;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SafeBlitzLayoutNode<'dom> {

@@ -2,10 +2,8 @@ use std::io::Cursor;
 
 use blitz_dom::{BaseDocument, DocumentConfig};
 use blitz_html::DocumentHtmlParser;
-use html5ever::{ParseOpts, interface::TreeSink, tendril::TendrilSink};
+use html5ever::{ParseOpts, tendril::TendrilSink};
 use rcdom::RcDom;
-
-use crate::core::Dom;
 
 pub trait ParseHtml: Sized {
     type Error;

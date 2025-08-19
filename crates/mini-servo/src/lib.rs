@@ -6,6 +6,7 @@ pub mod parse;
 pub mod style;
 pub mod util;
 pub mod wrapper;
+pub mod app;
 
 pub struct DomTypeConfig;
 

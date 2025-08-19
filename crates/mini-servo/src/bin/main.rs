@@ -1,18 +1,14 @@
-use std::{cell::Cell, rc::Rc, sync::Arc, thread::JoinHandle};
+use std::{rc::Rc, sync::Arc};
 
 use blitz_dom::BaseDocument;
-use compositing::{IOCompositor, InitialCompositorState};
-use compositing_traits::{CompositorMsg, CompositorProxy};
-use constellation_traits::EmbedderToConstellationMessage;
-use crossbeam_channel::{Receiver, Sender};
 use dpi::PhysicalSize;
 use euclid::Size2D;
-use layout::context::LayoutContext;
+use layout::{context::LayoutContext, LayoutFontMetricsProvider};
 use parking_lot::Mutex;
 use selectors::Element;
 use servo::{
-    DefaultEventLoopWaker, EventLoopWaker, RenderingContext, ShutdownState,
-    SoftwareRenderingContext, create_compositor_channel, profile_traits,
+    DefaultEventLoopWaker, EventLoopWaker, RenderingContext,
+    SoftwareRenderingContext, create_compositor_channel
 };
 use servo_config::opts::DebugOptions;
 use style::{
@@ -26,10 +22,10 @@ use mini_servo::{
     dummy::DummyRegisteredSpeculativePainters,
     layout::layout_and_build_display_list,
     parse::ParseHtml,
-    style::{RecalcStyle, resolve_style},
+    style::{resolve_style, RecalcStyle},
     util::{
         make_device, make_dummy_constellation_chan, make_font_context, make_image_resolver,
-        make_shared_style_context, make_stylist, make_webrender, spin_compositor,
+        make_shared_style_context, make_stylist, spawn_compositor_thread,
     },
 };
 
@@ -89,7 +85,7 @@ fn main() {
     let image_resolver = Arc::new(make_image_resolver(compositor_api));
 
     let viewport_size = Size2D::new(DEFAULT_WIDTH as f32, DEFAULT_HEIGHT as f32);
-    let device = make_device(viewport_size);
+    let device = make_device(viewport_size, Box::new(LayoutFontMetricsProvider(font_context.clone())));
     let stylist = make_stylist(device);
     let guard = SharedRwLock::new();
     let guards = StylesheetGuards {
@@ -141,53 +137,4 @@ fn main() {
     );
 
     println!("Completed");
-}
-
-fn spawn_compositor_thread(
-    compositor_proxy: CompositorProxy,
-    compositor_receiver: Receiver<CompositorMsg>,
-    constellation_sender: Sender<EmbedderToConstellationMessage>,
-    time_profiler_chan: profile_traits::time::ProfilerChan,
-    mem_profiler_chan: profile_traits::mem::ProfilerChan,
-    event_loop_waker: Box<dyn EventLoopWaker>,
-    rendering_context_fn: impl FnOnce() -> Rc<dyn RenderingContext> + Send + 'static,
-) -> JoinHandle<()> {
-    std::thread::spawn(move || {
-        log::info!("spawned new thread");
-
-        let shutdown_state = Rc::new(Cell::new(ShutdownState::NotShuttingDown));
-        let rendering_context = (rendering_context_fn)();
-
-        let webrender_gl = rendering_context.gleam_gl_api();
-        let (webrender, webrender_api_sender) = make_webrender(
-            rendering_context.clone(),
-            webrender_gl.clone(),
-            &compositor_proxy,
-        );
-        let webrender_api = webrender_api_sender.create_api();
-        let webrender_document = webrender_api.add_document(rendering_context.size2d().to_i32());
-
-        let state = InitialCompositorState {
-            sender: compositor_proxy,
-            receiver: compositor_receiver,
-            constellation_chan: constellation_sender,
-            time_profiler_chan,
-            mem_profiler_chan,
-            shutdown_state,
-            webrender,
-            webrender_document,
-            webrender_api,
-            rendering_context,
-            webrender_gl,
-            event_loop_waker,
-        };
-        let convert_mouse_to_touch = false;
-
-        log::info!("creating compositor");
-        let mut compositor = IOCompositor::new(state, convert_mouse_to_touch);
-
-        log::info!("created compositor");
-
-        spin_compositor(&mut compositor);
-    })
 }

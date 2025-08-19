@@ -90,7 +90,7 @@ mod tests {
     };
 
     use crate::{
-        dummy::DummyRegisteredSpeculativePainters,
+        dummy::{DummyFontMetricsProvider, DummyRegisteredSpeculativePainters},
         parse::ParseHtml,
         util::{make_device, make_shared_style_context, make_stylist},
     };
@@ -120,7 +120,7 @@ mod tests {
         let doc = BaseDocument::parse_html(SIMPLE_TEST_HTML, Default::default()).unwrap();
 
         // Create a dummy shared style context
-        let device = make_device(Size2D::new(800.0, 600.0));
+        let device = make_device(Size2D::new(800.0, 600.0), Box::new(DummyFontMetricsProvider));
         let stylist = make_stylist(device);
         let guard = SharedRwLock::new();
         let guards = StylesheetGuards {
@@ -158,7 +158,7 @@ mod tests {
         let doc = RcDom::parse_html(SIMPLE_TEST_HTML, Default::default()).unwrap();
 
         // Create a dummy shared style context
-        let device = make_device(Size2D::new(800.0, 600.0));
+        let device = make_device(Size2D::new(800.0, 600.0), Box::new(DummyFontMetricsProvider));
         let stylist = make_stylist(device);
         let guard = SharedRwLock::new();
         let guards = StylesheetGuards {

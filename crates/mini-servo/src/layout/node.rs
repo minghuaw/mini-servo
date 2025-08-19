@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use ::layout::{dom::NodeExt, fragment_tree::Fragment, replaced::CanvasInfo};
 use blitz_dom::{ElementData, local_name, node::NodeFlags};
 use html5ever::ns;
@@ -13,7 +11,6 @@ use layout_api::{
 };
 use script::layout_dom::LayoutNodeExt;
 use style::{
-    Atom,
     dom::{NodeInfo, TDocument, TNode, TShadowRoot},
     selector_parser::RestyleDamage,
 };
