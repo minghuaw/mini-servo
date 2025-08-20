@@ -41,9 +41,10 @@ use style::{
 };
 use style_traits::CSSPixel;
 use webrender::{
-    ONE_TIME_USAGE_HINT, RenderApiSender, Renderer, ShaderPrecacheFlags, UploadMethod,
+    ONE_TIME_USAGE_HINT, RenderApi, RenderApiSender, Renderer, ShaderPrecacheFlags, Transaction,
+    UploadMethod,
 };
-use webrender_api::ColorF;
+use webrender_api::{ColorF, DocumentId};
 use winit::{
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
     window::Window,
@@ -218,26 +219,103 @@ pub fn make_webrender(
     .expect("Unable to initialize webrender!")
 }
 
-pub fn spin_compositor(compositor: &mut IOCompositor) {
-    log::info!("spin compositor");
-    // let mut messages = Vec::new();
-    // while let Ok(message) = compositor.receiver().recv() {
-    //     let s: &'static str = (&message).into();
-    //     log::info!("recved message: {:?}", s);
-    //     messages.push(message);
-    // }
-    // compositor.handle_messages(messages);
+pub struct CompositorStarted;
 
-    // // TODO: any need to handle message from embedder?
+pub enum Running {
+    Stop,
+    Continue,
+}
 
-    // compositor.perform_updates();
-    loop {
-        let msg = match compositor.receiver().recv() {
-            Ok(msg) => msg,
-            Err(_) => break,
+pub struct CompositorSpinner {
+    pub shutdown_state: Rc<Cell<ShutdownState>>,
+    compositor: IOCompositor,
+    txn_rx: Receiver<Transaction>,
+}
+
+impl CompositorSpinner {
+    pub fn new(
+        compositor_proxy: CompositorProxy,
+        compositor_receiver: Receiver<CompositorMsg>,
+        constellation_sender: Sender<EmbedderToConstellationMessage>,
+        time_profiler_chan: profile_traits::time::ProfilerChan,
+        mem_profiler_chan: profile_traits::mem::ProfilerChan,
+        event_loop_waker: Box<dyn EventLoopWaker>,
+        rendering_context: Rc<dyn RenderingContext>,
+        txn_rx: Receiver<Transaction>,
+        compositor_started: Sender<CompositorStarted>,
+    ) -> Self {
+        let shutdown_state = Rc::new(Cell::new(ShutdownState::NotShuttingDown));
+
+        let webrender_gl = rendering_context.gleam_gl_api();
+        let (webrender, webrender_api_sender) = make_webrender(
+            rendering_context.clone(),
+            webrender_gl.clone(),
+            &compositor_proxy,
+        );
+        let webrender_api = webrender_api_sender.create_api();
+        let webrender_document = webrender_api.add_document(rendering_context.size2d().to_i32());
+
+        let state = InitialCompositorState {
+            sender: compositor_proxy,
+            receiver: compositor_receiver,
+            constellation_chan: constellation_sender,
+            time_profiler_chan,
+            mem_profiler_chan,
+            shutdown_state: shutdown_state.clone(),
+            webrender,
+            webrender_document,
+            webrender_api,
+            rendering_context,
+            webrender_gl,
+            event_loop_waker,
         };
-        compositor.handle_messages(vec![msg]);
-        compositor.perform_updates();
+        let convert_mouse_to_touch = false;
+
+        let compositor = IOCompositor::new(state, convert_mouse_to_touch);
+
+        let _ = compositor_started.send(CompositorStarted);
+
+        Self {
+            shutdown_state,
+            compositor,
+            txn_rx,
+        }
+    }
+
+    pub fn spin(&mut self) -> Running {
+        println!("spinning compositor");
+        let mut msgs = Vec::new();
+        loop {
+            match self.compositor.receiver().try_recv() {
+                Ok(msg) => msgs.push(msg),
+                Err(err) => match err {
+                    crossbeam_channel::TryRecvError::Empty => break,
+                    crossbeam_channel::TryRecvError::Disconnected => return Running::Stop,
+                },
+            };
+        }
+        self.compositor.handle_messages(msgs);
+        self.compositor.perform_updates();
+
+        // handle rendering to webrender
+        loop {
+            match self.txn_rx.try_recv() {
+                Ok(txn) => {
+                    let global = self.compositor.global();
+                    let mut servo_renderer = global.borrow_mut();
+                    let document_id = servo_renderer.webrender_document;
+                    servo_renderer
+                        .webrender_api
+                        .send_transaction(document_id, txn);
+                }
+                Err(err) => match err {
+                    crossbeam_channel::TryRecvError::Empty => break,
+                    crossbeam_channel::TryRecvError::Disconnected => return Running::Stop,
+                },
+            }
+        }
+
+        Running::Continue
     }
 }
 
@@ -249,42 +327,26 @@ pub fn spin_compositor_thread(
     mem_profiler_chan: profile_traits::mem::ProfilerChan,
     event_loop_waker: Box<dyn EventLoopWaker>,
     rendering_context: Rc<dyn RenderingContext>,
+    txn_rx: Receiver<Transaction>,
+    compositor_started: Sender<CompositorStarted>,
 ) {
-    log::info!("spawned new thread");
-
-    let shutdown_state = Rc::new(Cell::new(ShutdownState::NotShuttingDown));
-
-    let webrender_gl = rendering_context.gleam_gl_api();
-    let (webrender, webrender_api_sender) = make_webrender(
-        rendering_context.clone(),
-        webrender_gl.clone(),
-        &compositor_proxy,
-    );
-    let webrender_api = webrender_api_sender.create_api();
-    let webrender_document = webrender_api.add_document(rendering_context.size2d().to_i32());
-
-    let state = InitialCompositorState {
-        sender: compositor_proxy,
-        receiver: compositor_receiver,
-        constellation_chan: constellation_sender,
+    let mut spinner = CompositorSpinner::new(
+        compositor_proxy,
+        compositor_receiver,
+        constellation_sender,
         time_profiler_chan,
         mem_profiler_chan,
-        shutdown_state,
-        webrender,
-        webrender_document,
-        webrender_api,
-        rendering_context,
-        webrender_gl,
         event_loop_waker,
-    };
-    let convert_mouse_to_touch = false;
+        rendering_context,
+        txn_rx,
+        compositor_started,
+    );
 
-    log::info!("creating compositor");
-    let mut compositor = IOCompositor::new(state, convert_mouse_to_touch);
-
-    log::info!("created compositor");
-
-    spin_compositor(&mut compositor);
+    loop {
+        if let Running::Stop = spinner.spin() {
+            break;
+        }
+    }
 }
 
 pub enum RenderingContextFactory {
@@ -322,6 +384,8 @@ pub fn spawn_compositor_thread(
     mem_profiler_chan: profile_traits::mem::ProfilerChan,
     event_loop_waker: Box<dyn EventLoopWaker>,
     rendering_context_factory: RenderingContextFactory,
+    txn_rx: Receiver<Transaction>,
+    compositor_started: Sender<CompositorStarted>,
 ) -> JoinHandle<()> {
     std::thread::spawn(|| {
         let rendering_context = rendering_context_factory.create();
@@ -333,6 +397,8 @@ pub fn spawn_compositor_thread(
             mem_profiler_chan,
             event_loop_waker,
             rendering_context,
+            txn_rx,
+            compositor_started,
         );
     })
 }

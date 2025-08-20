@@ -19,15 +19,16 @@ pub use safe_element::*;
 pub use safe_node::*;
 use servo_config::opts::DebugOptions;
 use style::{selector_parser::RestyleDamage, stylist::Stylist};
-use webrender_api::{BuiltDisplayList, units::LayoutSize};
+use webrender_api::{units::LayoutSize, BuiltDisplayList, PipelineId};
 
 pub type BlitzNode<'dom> = &'dom blitz_dom::Node;
 
 pub struct LayoutOutput {
-    box_tree: Option<Arc<BoxTree>>,
-    fragment_tree: FragmentTree,
-    stacking_context_tree: StackingContextTree,
-    display_list: BuiltDisplayList,
+    pub box_tree: Option<Arc<BoxTree>>,
+    pub fragment_tree: FragmentTree,
+    pub stacking_context_tree: StackingContextTree,
+    pub pipeline_id: PipelineId,
+    pub display_list: BuiltDisplayList,
 }
 
 pub fn layout_and_build_display_list(
@@ -36,7 +37,7 @@ pub fn layout_and_build_display_list(
     layout_context: LayoutContext,
     stylist: &Stylist,
     image_resolver: Arc<ImageResolver>,
-    debug_options: DebugOptions,
+    debug_options: &DebugOptions,
 ) -> LayoutOutput {
     let mut box_tree: Option<Arc<BoxTree>> = None;
     let restyle_damage = RestyleDamage::RELAYOUT; // TODO: 
@@ -84,7 +85,7 @@ pub fn layout_and_build_display_list(
         px_viewport_size,
         id,
         first_reflow,
-        &debug_options,
+        debug_options,
     );
 
     // Build display list
@@ -123,12 +124,13 @@ pub fn layout_and_build_display_list(
 
     builder.paint_dom_inspector_highlight();
 
-    let display_list = webrender_display_list_builder.end().1;
+    let (pipeline_id, display_list) = webrender_display_list_builder.end();
 
     LayoutOutput {
         box_tree,
         fragment_tree,
         stacking_context_tree,
+        pipeline_id,
         display_list,
     }
 }
