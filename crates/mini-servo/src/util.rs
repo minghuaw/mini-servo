@@ -44,7 +44,7 @@ use webrender::{
     ONE_TIME_USAGE_HINT, RenderApi, RenderApiSender, Renderer, ShaderPrecacheFlags, Transaction,
     UploadMethod,
 };
-use webrender_api::{ColorF, DocumentId};
+use webrender_api::{ColorF, DocumentId, RenderReasons};
 use winit::{
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
     window::Window,
@@ -223,12 +223,13 @@ pub struct CompositorStarted;
 
 pub enum Running {
     Stop,
+    RequestRedraw,
     Continue,
 }
 
 pub struct CompositorSpinner {
     pub shutdown_state: Rc<Cell<ShutdownState>>,
-    compositor: IOCompositor,
+    pub compositor: IOCompositor,
     txn_rx: Receiver<Transaction>,
 }
 
@@ -273,6 +274,7 @@ impl CompositorSpinner {
 
         let compositor = IOCompositor::new(state, convert_mouse_to_touch);
 
+        log::info!("Sending CompositorStarted");
         let _ = compositor_started.send(CompositorStarted);
 
         Self {
@@ -283,7 +285,7 @@ impl CompositorSpinner {
     }
 
     pub fn spin(&mut self) -> Running {
-        println!("spinning compositor");
+        log::info!("spinning compositor");
         let mut msgs = Vec::new();
         loop {
             match self.compositor.receiver().try_recv() {
@@ -297,25 +299,17 @@ impl CompositorSpinner {
         self.compositor.handle_messages(msgs);
         self.compositor.perform_updates();
 
-        // handle rendering to webrender
-        loop {
-            match self.txn_rx.try_recv() {
-                Ok(txn) => {
-                    let global = self.compositor.global();
-                    let mut servo_renderer = global.borrow_mut();
-                    let document_id = servo_renderer.webrender_document;
-                    servo_renderer
-                        .webrender_api
-                        .send_transaction(document_id, txn);
-                }
-                Err(err) => match err {
-                    crossbeam_channel::TryRecvError::Empty => break,
-                    crossbeam_channel::TryRecvError::Disconnected => return Running::Stop,
-                },
-            }
+        match self.txn_rx.try_recv() {
+            Ok(mut txn) => {
+                log::info!("Received transaction, generate frame");
+                self.compositor.generate_frame(&mut txn, RenderReasons::empty());
+                Running::RequestRedraw
+            },
+            Err(err) => match err {
+                crossbeam_channel::TryRecvError::Empty => Running::Continue,
+                crossbeam_channel::TryRecvError::Disconnected => Running::Stop,
+            },
         }
-
-        Running::Continue
     }
 }
 

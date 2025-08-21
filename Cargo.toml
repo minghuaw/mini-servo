@@ -13,6 +13,8 @@ atomic_refcell = "0.1"
 rcdom = { package = "markup5ever_rcdom", version = "0.35" }
 blitz-dom = { path = "../blitz/packages/blitz-dom" }
 blitz-html = { path = "../blitz/packages/blitz-html" }
+# blitz-dom = { git = "https://github.com/minghuaw/blitz.git", branch = "exp/parallel-mainthread" }
+# blitz-html = { git = "https://github.com/minghuaw/blitz.git", branch = "exp/parallel-mainthread" }
 stylo = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 stylo_traits = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
 stylo_config = { git = "https://github.com/servo/stylo", branch = "2025-07-01" }
@@ -31,13 +33,32 @@ parking_lot = "0.12"
 strum = "0.26"
 crossbeam-channel = "0.5"
 dpi = "0.1"
+gleam = "0.15"
+winit = "0.30.11"
+env_logger = "0.11"
 
 # servo deps
 # script = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
 # layout = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# layout_api = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# range = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# servo_url = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# fonts = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# fonts_traits = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# pixels = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# net_traits = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# base = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# libservo = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# compositing = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# compositing_traits = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# constellation_traits = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# net = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# servo_config = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# servo_allocator = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
+# profile = { git = "https://github.com/minghuaw/servo.git", branch = "exp/parallel-mainthread" }
 
 script = { path = "../servo/components/script" }
-# script_bindings = { path = "../servo/components/script_bindings" }
+script_bindings = { path = "../servo/components/script_bindings" }
 layout = { path = "../servo/components/layout" }
 layout_api = { path="../servo/components/shared/layout" }
 range = { path = "../servo/components/range" }
@@ -55,6 +76,3 @@ net = { path = "../servo/components/net" }
 servo_config = { path = "../servo/components/config" }
 servo_allocator = { path = "../servo/components/allocator" }
 profile = { path = "../servo/components/profile" }
-gleam = "0.15"
-winit = "0.30.11"
-env_logger = "0.11"
