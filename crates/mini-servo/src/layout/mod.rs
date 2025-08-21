@@ -4,7 +4,7 @@ mod node;
 mod safe_element;
 mod safe_node;
 
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
 pub use element::*;
 pub use iter::*;
@@ -12,14 +12,16 @@ use layout::{
     BoxTree, FragmentTree,
     context::{ImageResolver, LayoutContext},
     display_list::StackingContextTree,
+    dom::NodeExt,
 };
-use layout_api::LayoutDamage;
+use layout_api::{LayoutDamage, wrapper_traits::LayoutNode};
 pub use node::*;
 pub use safe_element::*;
 pub use safe_node::*;
+use script::layout_dom::LayoutNodeExt;
 use servo_config::opts::DebugOptions;
 use style::{selector_parser::RestyleDamage, stylist::Stylist};
-use webrender_api::{units::LayoutSize, BuiltDisplayList, PipelineId};
+use webrender_api::{BuiltDisplayList, PipelineId, units::LayoutSize};
 
 pub type BlitzNode<'dom> = &'dom blitz_dom::Node;
 
@@ -31,25 +33,27 @@ pub struct LayoutOutput {
     pub display_list: BuiltDisplayList,
 }
 
-pub fn layout_and_build_display_list(
-    dirty_root: &blitz_dom::Node,
-    root: &blitz_dom::Node,
+pub fn layout_and_build_display_list<'dom, T, U>(
+    dirty_root: T,
+    root: U,
     layout_context: LayoutContext,
     stylist: &Stylist,
     image_resolver: Arc<ImageResolver>,
     debug_options: &DebugOptions,
-) -> LayoutOutput {
+) -> LayoutOutput
+where
+    T: LayoutNode<'dom> + NodeExt<'dom> + LayoutNodeExt<'dom>,
+    U: LayoutNode<'dom> + NodeExt<'dom> + LayoutNodeExt<'dom>,
+{
     let mut box_tree: Option<Arc<BoxTree>> = None;
     let restyle_damage = RestyleDamage::RELAYOUT; // TODO: 
     let layout_damage: LayoutDamage = restyle_damage.into();
 
-    let blitz_node = BlitzLayoutNode { value: dirty_root };
-    let root_node = BlitzLayoutNode { value: root };
     if box_tree.is_none() || layout_damage.has_box_damage() {
         let mut build_box_tree = || {
             log::debug!("ran build_box_tree");
-            if !BoxTree::update(&layout_context, blitz_node) {
-                box_tree = Some(Arc::new(BoxTree::construct(&layout_context, root_node)));
+            if !BoxTree::update(&layout_context, dirty_root) {
+                box_tree = Some(Arc::new(BoxTree::construct(&layout_context, root)));
             }
         };
 
@@ -70,6 +74,10 @@ pub fn layout_and_build_display_list(
     let fragment_tree = run_layout();
 
     fragment_tree.calculate_scrollable_overflow();
+
+    if debug_options.dump_flow_tree {
+        fragment_tree.print();
+    }
 
     let id = webrender_api::PipelineId::dummy();
     let first_reflow = true;
@@ -95,6 +103,10 @@ pub fn layout_and_build_display_list(
     let mut webrender_display_list_builder =
         webrender_api::DisplayListBuilder::new(compositor_info.pipeline_id);
     webrender_display_list_builder.begin();
+
+    if debug_options.dump_display_list {
+        webrender_display_list_builder.dump_serialized_display_list();
+    }
 
     let mut builder = layout::display_list::DisplayListBuilder {
         current_scroll_node_id: compositor_info.root_reference_frame_id,

@@ -1,11 +1,11 @@
 //! Impl a simple winit app to visualize the webpage
 
-use std::{mem, rc::Rc, sync::Arc, thread::JoinHandle, time::Duration};
+use std::{rc::Rc, sync::Arc, thread::JoinHandle, time::Duration};
 
 use blitz_dom::BaseDocument;
 use compositing_traits::CrossProcessCompositorApi;
 use crossbeam_channel::Sender;
-use dpi::{LogicalSize, PhysicalSize};
+use dpi::PhysicalSize;
 use euclid::Size2D;
 use fonts::FontContext;
 use layout::{
@@ -20,7 +20,7 @@ use servo::{
 };
 use servo_config::opts::DebugOptions;
 use style::{
-    context::{RegisteredSpeculativePainters, SharedStyleContext},
+    context::RegisteredSpeculativePainters,
     dom::{TDocument, TNode},
     selector_parser::SnapshotMap,
     shared_lock::{SharedRwLock, StylesheetGuards},
@@ -29,24 +29,23 @@ use style::{
 };
 use style_traits::CSSPixel;
 use webrender::Transaction;
-use webrender_api::{Epoch, PipelineId, RenderNotifier, RenderReasons};
+use webrender_api::Epoch;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{EventLoop, EventLoopProxy},
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
-    window::{Window, WindowAttributes},
+    window::Window,
 };
 
 use crate::{
     dummy::DummyRegisteredSpeculativePainters,
-    layout::{LayoutOutput, layout_and_build_display_list},
+    layout::{BlitzLayoutNode, LayoutOutput, layout_and_build_display_list},
     parse::ParseHtml,
     style::{RecalcStyle, resolve_style},
     util::{
-        CompositorSpinner, RenderingContextFactory, make_device, make_dummy_constellation_chan,
-        make_font_context, make_image_resolver, make_shared_style_context, make_stylist,
-        spawn_compositor_thread,
+        CompositorSpinner, make_device, make_dummy_constellation_chan, make_font_context,
+        make_image_resolver, make_shared_style_context, make_stylist,
     },
 };
 
@@ -66,63 +65,23 @@ const SIMPLE_TEST_HTML: &str = r#"
 </html>
 "#;
 
-// enum AppState {
-//     None, // A temporary placeholder state while processing other states.
-//     Initial {
-//         size: PhysicalSize<u32>,
-//         debug_options: Arc<DebugOptions>,
-//         event_loop_proxy: EventLoopProxy<()>,
-//     },
-//     WindowCreated {
-//         debug_options: Arc<DebugOptions>,
-//         window: Window,
-//         waker_thread: JoinHandle<()>,
-//     },
-//     RenderingContextCreated {
-//         debug_options: Arc<DebugOptions>,
-//         window: Window,
-//         rendering_context: Rc<WindowRenderingContext>,
-//         waker_thread: JoinHandle<()>,
-//     },
-//     Running {
-//         window: Window,
-//         rendering_context: Rc<WindowRenderingContext>,
-//         compositor_spinner: CompositorSpinner,
-//         waker_thread: JoinHandle<()>,
-//         main_thread: JoinHandle<()>,
-//     },
-// }
+// // TODO: replace with some other string
+// const SIMPLE_TEST_HTML: &str = r#"
+// <!DOCTYPE html>
+// <html>
+// <head>
 
-// impl AppState {
-//     pub fn kind(&self) -> AppStateKind {
-//         match self {
-//             AppState::None => AppStateKind::None,
-//             AppState::Initial { .. } => AppStateKind::Initial,
-//             AppState::WindowCreated { .. } => AppStateKind::WindowCreated,
-//             AppState::RenderingContextCreated { .. } => AppStateKind::RenderingContextCreated,
-//             AppState::Running { .. } => AppStateKind::Running,
-//         }
-//     }
-
-//     pub fn take(&mut self) -> Self {
-//         mem::replace(self, AppState::None)
-//     }
-// }
-
-// #[derive(Debug, Clone, Copy)]
-// enum AppStateKind {
-//     None,
-//     Initial,
-//     WindowCreated,
-//     RenderingContextCreated,
-//     Running,
-// }
+// </head>
+// <body>
+// </body>
+// </html>
+// "#;
 
 enum AppState {
     Initial {
         size: PhysicalSize<u32>,
         debug_options: Arc<DebugOptions>,
-        event_loop_proxy: EventLoopProxy<()>
+        event_loop_proxy: EventLoopProxy<()>,
     },
     Running {
         window: Window,
@@ -130,22 +89,7 @@ enum AppState {
         compositor_spinner: CompositorSpinner,
         waker_thread: JoinHandle<()>,
         main_thread: JoinHandle<()>,
-    }
-}
-
-#[derive(Debug)]
-enum AppStateKind {
-    Initial,
-    Running
-}
-
-impl AppState {
-    pub fn kind(&self) -> AppStateKind {
-        match self {
-            Self::Initial { .. } => AppStateKind::Initial,
-            Self::Running { .. } => AppStateKind::Running
-        }
-    }
+    },
 }
 
 pub struct App {
@@ -172,134 +116,12 @@ impl App {
 
 impl ApplicationHandler<()> for App {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        log::info!("Entering state kind {:?}", self.state.kind());
-
-        // self.state = match self.state.take() {
-        //     AppState::Initial {
-        //         size,
-        //         debug_options,
-        //         event_loop_proxy,
-        //     } => {
-        //         let mut window_attr = Window::default_attributes();
-        //         window_attr.inner_size = Some(winit::dpi::Size::Physical(size));
-        //         let window = event_loop.create_window(window_attr).unwrap();
-
-        //         let event_loop_proxy_clone = event_loop_proxy.clone();
-        //         let waker_thread = std::thread::spawn(move || {
-        //             let _ = event_loop_proxy_clone.send_event(());
-        //             std::thread::sleep(std::time::Duration::from_millis(1000));
-        //         });
-
-        //         AppState::WindowCreated {
-        //             window,
-        //             waker_thread,
-        //             debug_options,
-        //         }
-        //     }
-        //     AppState::WindowCreated {
-        //         window,
-        //         waker_thread,
-        //         debug_options,
-        //     } => {
-        //         let display_handle = event_loop.display_handle().unwrap();
-        //         let window_handle = window.window_handle().unwrap();
-        //         let rendering_context = Rc::new(
-        //             WindowRenderingContext::new(display_handle, window_handle, window.inner_size())
-        //                 .unwrap(),
-        //         );
-
-        //         let _ = rendering_context.make_current();
-
-        //         AppState::RenderingContextCreated {
-        //             window,
-        //             rendering_context,
-        //             waker_thread,
-        //             debug_options,
-        //         }
-        //     }
-        //     AppState::RenderingContextCreated {
-        //         rendering_context,
-        //         window,
-        //         waker_thread,
-        //         debug_options,
-        //     } => {
-        //         let event_loop_waker = Box::new(DefaultEventLoopWaker);
-        //         let (compositor_proxy, compositor_receiver) =
-        //             create_compositor_channel(event_loop_waker.clone_box());
-        //         let compositor_api = compositor_proxy.cross_process_compositor_api.clone();
-        //         log::info!("creating profilers");
-        //         let time_profiler_chan = ::profile::time::Profiler::create(&None, None);
-        //         let mem_profiler_chan = ::profile::mem::Profiler::create();
-        //         let constellation_sender = make_dummy_constellation_chan();
-
-        //         let (txn_tx, txn_rx) = crossbeam_channel::unbounded();
-        //         let (compositor_started_tx, compositor_started_rx) = crossbeam_channel::bounded(1);
-
-        //         let compositor_spinner = CompositorSpinner::new(
-        //             compositor_proxy,
-        //             compositor_receiver,
-        //             constellation_sender,
-        //             time_profiler_chan,
-        //             mem_profiler_chan.clone(),
-        //             event_loop_waker,
-        //             rendering_context.clone(),
-        //             txn_rx,
-        //             compositor_started_tx,
-        //         );
-
-        //         let viewport_size = Size2D::new(
-        //             window.inner_size().width as f32,
-        //             window.inner_size().height as f32,
-        //         );
-        //         let debug_options_clone = debug_options.clone();
-        //         let main_thread = std::thread::spawn(move || {
-        //             if let Err(_) = compositor_started_rx.recv() {
-        //                 return;
-        //             }
-        //             log::info!("Received compositor started");
-
-        //             let mut main_thread = MainThread::new(
-        //                 compositor_api,
-        //                 mem_profiler_chan,
-        //                 viewport_size,
-        //                 DummyRegisteredSpeculativePainters,
-        //                 debug_options_clone,
-        //                 txn_tx,
-        //             );
-        //             log::info!("Created main thread");
-
-        //             loop {
-        //                 main_thread.parse_style_layout();
-
-        //                 std::thread::sleep(Duration::from_millis(100));
-        //             }
-        //         });
-
-        //         AppState::Running {
-        //             window,
-        //             rendering_context,
-        //             compositor_spinner,
-        //             waker_thread,
-        //             main_thread,
-        //         }
-        //     }
-        //     AppState::Running {
-        //         compositor_spinner,
-        //         waker_thread,
-        //         main_thread,
-        //         window,
-        //         rendering_context,
-        //     } => AppState::Running {
-        //         window,
-        //         compositor_spinner,
-        //         waker_thread,
-        //         main_thread,
-        //         rendering_context,
-        //     },
-        //     AppState::None => unreachable!(),
-        // };
-
-        if let AppState::Initial { size, debug_options, event_loop_proxy } = &self.state {
+        if let AppState::Initial {
+            size,
+            debug_options,
+            event_loop_proxy,
+        } = &self.state
+        {
             let mut window_attr = Window::default_attributes();
             window_attr.inner_size = Some(winit::dpi::Size::Physical(*size));
             let window = event_loop.create_window(window_attr).unwrap();
@@ -323,7 +145,6 @@ impl ApplicationHandler<()> for App {
             let (compositor_proxy, compositor_receiver) =
                 create_compositor_channel(event_loop_waker.clone_box());
             let compositor_api = compositor_proxy.cross_process_compositor_api.clone();
-            log::info!("creating profilers");
             let time_profiler_chan = ::profile::time::Profiler::create(&None, None);
             let mem_profiler_chan = ::profile::mem::Profiler::create();
             let constellation_sender = make_dummy_constellation_chan();
@@ -352,7 +173,6 @@ impl ApplicationHandler<()> for App {
                 if let Err(_) = compositor_started_rx.recv() {
                     return;
                 }
-                log::info!("Received compositor started");
 
                 let mut main_thread = MainThread::new(
                     compositor_api,
@@ -362,42 +182,40 @@ impl ApplicationHandler<()> for App {
                     debug_options_clone,
                     txn_tx,
                 );
-                log::info!("Created main thread");
 
                 loop {
                     main_thread.parse_style_layout();
 
-                    std::thread::sleep(Duration::from_millis(100));
+                    std::thread::sleep(Duration::from_millis(500));
                 }
             });
 
-            self.state = AppState::Running { window, rendering_context, compositor_spinner, waker_thread, main_thread };
+            self.state = AppState::Running {
+                window,
+                rendering_context,
+                compositor_spinner,
+                waker_thread,
+                main_thread,
+            };
         }
     }
 
     fn user_event(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop, _event: ()) {
-        log::info!("user_event");
-
         spin_compositor_if_app_running(self)
     }
 
     fn window_event(
         &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
+        _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
-        log::info!("window_event: {:?}", event);
-        log::info!("App state kind: {:?}", self.state.kind());
-
         match event {
             WindowEvent::RedrawRequested => {
                 if let AppState::Running {
-                    window,
                     compositor_spinner,
-                    waker_thread,
-                    main_thread,
                     rendering_context,
+                    ..
                 } = &mut self.state
                 {
                     if !compositor_spinner.compositor.render() {
@@ -416,18 +234,16 @@ impl ApplicationHandler<()> for App {
 fn spin_compositor_if_app_running(app: &mut App) {
     if let AppState::Running {
         window,
-        compositor_spinner, ..
+        compositor_spinner,
+        ..
     } = &mut app.state
     {
         match compositor_spinner.spin() {
             crate::util::Running::Stop => {
                 // TODO
-            },
-            crate::util::Running::RequestRedraw => {
-                log::info!("request redraw");
-                window.request_redraw()
-            },
-            crate::util::Running::Continue => {},
+            }
+            crate::util::Running::RequestRedraw => window.request_redraw(),
+            crate::util::Running::Continue => {}
         }
     }
 }
@@ -499,21 +315,25 @@ where
             image_resolver: self.image_resolver.clone(),
         };
 
-        log::info!("parse document");
         thread_state::enter(ThreadState::LAYOUT);
         let doc = BaseDocument::parse_html(SIMPLE_TEST_HTML, Default::default()).unwrap();
 
         let traversal = RecalcStyle::new(&layout_context.style_context);
 
-        let root = TDocument::as_node(&doc.get_node(0).unwrap())
+        let root_node = TDocument::as_node(&doc.get_node(0).unwrap())
             .first_element_child()
             .unwrap()
             .as_element()
             .unwrap();
 
-        let dirty_root =
-            resolve_style(root, traversal, &layout_context.style_context, None).unwrap();
-        assert!(dirty_root.is_html_document());
+        let dirty_root_node =
+            resolve_style(root_node, traversal, &layout_context.style_context, None).unwrap();
+        assert!(dirty_root_node.is_html_document());
+
+        let root = BlitzLayoutNode { value: root_node };
+        let dirty_root = BlitzLayoutNode {
+            value: dirty_root_node,
+        };
 
         thread_state::exit(ThreadState::LAYOUT);
 
@@ -539,12 +359,6 @@ where
 
         txn.set_display_list(epoch, (pipeline_id, display_list));
         txn.set_root_pipeline(pipeline_id);
-        // txn.generate_frame(0, true, RenderReasons::empty());
-
-        // TODO: IOCompositor is able to run webrender internally, double check how
-        // servo send the built_display_list to the compositor thread
         self.txn_tx.send(txn).unwrap();
-
-        log::info!("Completed");
     }
 }

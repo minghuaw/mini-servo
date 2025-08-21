@@ -26,7 +26,10 @@ impl FontMetricsProvider for DummyFontMetricsProvider {
 
 pub struct DummyRegisteredSpeculativePainters;
 impl RegisteredSpeculativePainters for DummyRegisteredSpeculativePainters {
-    fn get(&self, _name: &style::Atom) -> Option<&dyn style::context::RegisteredSpeculativePainter> {
+    fn get(
+        &self,
+        _name: &style::Atom,
+    ) -> Option<&dyn style::context::RegisteredSpeculativePainter> {
         None
     }
 }

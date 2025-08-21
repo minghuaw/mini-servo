@@ -20,7 +20,7 @@ use style::{
 
 use mini_servo::{
     dummy::DummyRegisteredSpeculativePainters,
-    layout::layout_and_build_display_list,
+    layout::{BlitzLayoutNode, layout_and_build_display_list},
     parse::ParseHtml,
     style::{RecalcStyle, resolve_style},
     util::{
@@ -61,7 +61,6 @@ fn main() {
     let (compositor_proxy, compositor_receiver) =
         create_compositor_channel(event_loop_waker.clone_box());
     let compositor_api = compositor_proxy.cross_process_compositor_api.clone();
-    log::info!("creating profilers");
     let time_profiler_chan = ::profile::time::Profiler::create(&None, None);
     let mem_profiler_chan = ::profile::mem::Profiler::create();
     let constellation_sender = make_dummy_constellation_chan();
@@ -96,7 +95,6 @@ fn main() {
         let snapshot_map = SnapshotMap::new();
         let registered_speculative_painters = DummyRegisteredSpeculativePainters;
 
-        log::info!("creating shared style context");
         let shared_context = make_shared_style_context(
             &stylist,
             guards,
@@ -111,21 +109,25 @@ fn main() {
             image_resolver: image_resolver.clone(),
         };
 
-        log::info!("parse document");
         thread_state::enter(ThreadState::LAYOUT);
         let doc = BaseDocument::parse_html(SIMPLE_TEST_HTML, Default::default()).unwrap();
 
         let traversal = RecalcStyle::new(&layout_context.style_context);
 
-        let root = TDocument::as_node(&doc.get_node(0).unwrap())
+        let root_node = TDocument::as_node(&doc.get_node(0).unwrap())
             .first_element_child()
             .unwrap()
             .as_element()
             .unwrap();
 
-        let dirty_root =
-            resolve_style(root, traversal, &layout_context.style_context, None).unwrap();
-        assert!(dirty_root.is_html_document());
+        let dirty_root_node =
+            resolve_style(root_node, traversal, &layout_context.style_context, None).unwrap();
+        assert!(dirty_root_node.is_html_document());
+
+        let root = BlitzLayoutNode { value: root_node };
+        let dirty_root = BlitzLayoutNode {
+            value: dirty_root_node,
+        };
 
         thread_state::exit(ThreadState::LAYOUT);
 

@@ -41,10 +41,9 @@ use style::{
 };
 use style_traits::CSSPixel;
 use webrender::{
-    ONE_TIME_USAGE_HINT, RenderApi, RenderApiSender, Renderer, ShaderPrecacheFlags, Transaction,
-    UploadMethod,
+    ONE_TIME_USAGE_HINT, RenderApiSender, Renderer, ShaderPrecacheFlags, Transaction, UploadMethod,
 };
-use webrender_api::{ColorF, DocumentId, RenderReasons};
+use webrender_api::{ColorF, RenderReasons};
 use winit::{
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
     window::Window,
@@ -100,7 +99,7 @@ pub fn make_dummy_constellation_chan() -> crossbeam_channel::Sender<EmbedderToCo
     std::thread::spawn(move || {
         while let Ok(msg) = receiver.recv() {
             let s: &'static str = msg.into();
-            log::info!("dummy constellation recved msg: {:?}", s);
+            log::debug!("dummy constellation recved msg: {:?}", s);
         }
     });
 
@@ -112,7 +111,7 @@ pub fn make_dummy_core_thread() -> CoreResourceThread {
 
     std::thread::spawn(move || {
         while let Ok(msg) = recver.recv() {
-            log::info!("dummy core threads recved msg: {:?}", msg);
+            log::debug!("dummy core threads recved msg: {:?}", msg);
         }
     });
 
@@ -134,7 +133,6 @@ pub fn make_font_context(
     let idb = IndexedDBThreadFactory::new(config_dir);
     let resource_threads = ResourceThreads::new(core_thread, storage.clone(), idb);
 
-    log::info!("making FontContext");
     let font_context =
         FontContext::new(system_font_service_proxy, compositor_api, resource_threads);
     (font_context, storage)
@@ -274,7 +272,6 @@ impl CompositorSpinner {
 
         let compositor = IOCompositor::new(state, convert_mouse_to_touch);
 
-        log::info!("Sending CompositorStarted");
         let _ = compositor_started.send(CompositorStarted);
 
         Self {
@@ -285,7 +282,6 @@ impl CompositorSpinner {
     }
 
     pub fn spin(&mut self) -> Running {
-        log::info!("spinning compositor");
         let mut msgs = Vec::new();
         loop {
             match self.compositor.receiver().try_recv() {
@@ -301,10 +297,13 @@ impl CompositorSpinner {
 
         match self.txn_rx.try_recv() {
             Ok(mut txn) => {
-                log::info!("Received transaction, generate frame");
-                self.compositor.generate_frame(&mut txn, RenderReasons::empty());
+                self.compositor
+                    .generate_frame(&mut txn, RenderReasons::empty());
+                let global = self.compositor.global();
+                let mut servo_renderer = global.borrow_mut();
+                servo_renderer.send_transaction(txn);
                 Running::RequestRedraw
-            },
+            }
             Err(err) => match err {
                 crossbeam_channel::TryRecvError::Empty => Running::Continue,
                 crossbeam_channel::TryRecvError::Disconnected => Running::Stop,

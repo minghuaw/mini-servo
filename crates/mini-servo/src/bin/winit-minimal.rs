@@ -11,7 +11,12 @@ fn main() {
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let size = PhysicalSize::new(800, 600);
-    let debug_options = DebugOptions::default();
+    let debug_options = DebugOptions {
+        dump_display_list: true,
+        dump_stacking_context_tree: true,
+        dump_flow_tree: true,
+        ..Default::default()
+    };
     let mut app = App::new(size, debug_options, &event_loop);
 
     event_loop.run_app(&mut app).unwrap()
